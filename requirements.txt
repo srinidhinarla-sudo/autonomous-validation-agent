@@ -5,3 +5,8 @@ pybind11>=2.11
 Pillow>=10.0
 mutmut>=2.4
 coverage>=7.3
+
+# live dashboard
+fastapi>=0.110
+uvicorn[standard]>=0.29
+websockets>=12.0

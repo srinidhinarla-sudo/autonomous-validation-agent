@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infotainment SM Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      background: #0f172a;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── header ─────────────────────────────────────────────── */
+    header {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    header h1 span { color: #e2e8f0; }
+    .chips { display: flex; gap: 6px; align-items: center; }
+    .chip {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #64748b;
+    }
+    .chip.live { border-color: #22c55e; color: #22c55e; }
+    .chip.live::before { content: '● '; font-size: 8px; }
+    .chip.offline { border-color: #ef4444; color: #ef4444; }
+    .chip.offline::before { content: '● '; font-size: 8px; }
+
+    /* ── layout ─────────────────────────────────────────────── */
+    main {
+      display: grid;
+      grid-template-columns: 230px 1fr 270px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .panel {
+      border-right: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel:last-child { border-right: none; }
+
+    .panel-hdr {
+      padding: 8px 14px;
+      border-bottom: 1px solid #334155;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #475569;
+      font-weight: 600;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-hdr .hint { color: #334155; font-size: 9px; text-transform: none; letter-spacing: 0; }
+
+    .panel-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+
+    /* ── left panel: state + context ────────────────────────── */
+    .state-card {
+      text-align: center;
+      padding: 16px 0 14px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 12px;
+    }
+    .state-label {
+      font-size: 10px;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+    .state-name {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 8px;
+      word-break: break-all;
+      transition: color 0.2s;
+    }
+    .subsystem-badge {
+      display: inline-block;
+      font-size: 9px;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .ctx-section { margin-bottom: 14px; }
+    .ctx-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #475569;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .speed-num {
+      font-size: 24px;
+      font-weight: 700;
+      text-align: center;
+      color: #3b82f6;
+      transition: color 0.2s;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .speed-unit { font-size: 10px; color: #475569; text-align: center; margin-bottom: 6px; }
+    input[type=range] {
+      width: 100%;
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 5px;
+      padding: 5px 7px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .toggle-item:hover { border-color: #334155; }
+    .toggle-item input { accent-color: #3b82f6; cursor: pointer; flex-shrink: 0; }
+    .toggle-item span { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .reset-btn {
+      width: 100%;
+      margin-top: 10px;
+      padding: 7px;
+      background: transparent;
+      border: 1px solid #1e293b;
+      border-radius: 5px;
+      color: #475569;
+      font-family: inherit;
+      font-size: 10px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      transition: all 0.15s;
+    }
+    .reset-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── middle panel: events ────────────────────────────────── */
+    .events-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      align-content: flex-start;
+    }
+    .ev-btn {
+      font-family: inherit;
+      font-size: 10px;
+      padding: 4px 9px;
+      border-radius: 4px;
+      border: 1px solid;
+      cursor: pointer;
+      transition: all 0.1s;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .ev-btn.valid {
+      background: rgba(59,130,246,0.1);
+      border-color: #3b82f6;
+      color: #93c5fd;
+    }
+    .ev-btn.valid:hover {
+      background: #3b82f6;
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(59,130,246,0.4);
+    }
+    .ev-btn.invalid {
+      background: transparent;
+      border-color: #1e293b;
+      color: #1e293b;
+      cursor: default;
+    }
+
+    /* ── right panel: log ───────────────────────────────────── */
+    .log-entry {
+      padding: 7px 0;
+      border-bottom: 1px solid #1a2234;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .log-from { font-size: 10px; color: #64748b; margin-bottom: 1px; }
+    .log-event-name { font-size: 9px; color: #475569; margin-bottom: 1px; }
+    .log-to { font-size: 11px; font-weight: 600; }
+    .log-ok   { color: #22c55e; font-size: 10px; font-weight: 700; }
+    .log-fail { color: #ef4444; font-size: 10px; font-weight: 700; }
+    .log-new { animation: flash-in 0.35s ease; }
+    @keyframes flash-in {
+      0%   { background: rgba(59,130,246,0.15); }
+      100% { background: transparent; }
+    }
+
+    /* ── footer ─────────────────────────────────────────────── */
+    footer {
+      background: #1e293b;
+      border-top: 1px solid #334155;
+      padding: 7px 20px;
+      display: flex;
+      gap: 28px;
+      font-size: 10px;
+      color: #475569;
+      flex-shrink: 0;
+    }
+    footer strong { color: #94a3b8; }
+
+    /* ── scrollbar ───────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Infotainment <span>SM Dashboard</span></h1>
+  <div class="chips">
+    <span class="chip">61 states</span>
+    <span class="chip">73 events</span>
+    <span class="chip">217 transitions</span>
+    <span class="chip" id="conn-chip">connecting</span>
+  </div>
+</header>
+
+<main>
+  <!-- ── LEFT: state + context ─────────────────────────── -->
+  <div class="panel">
+    <div class="panel-hdr">Machine State</div>
+    <div class="panel-body">
+
+      <div class="state-card">
+        <div class="state-label">Current State</div>
+        <div class="state-name" id="state-name">BOOT</div>
+        <div class="subsystem-badge" id="sub-badge" style="background:#1e293b;color:#64748b">—</div>
+      </div>
+
+      <div class="ctx-section">
+        <div class="ctx-label">Vehicle Speed</div>
+        <div class="speed-num" id="speed-num">0</div>
+        <div class="speed-unit">km/h — guards lock at &gt; 5</div>
+        <input type="range" id="speed-slider" min="0" max="120" step="1" value="0">
+      </div>
+
+      <div class="ctx-section">
+        <div class="ctx-label">Context Flags</div>
+        <div class="toggle-grid">
+          <label class="toggle-item"><input type="checkbox" id="ctx-engine" checked><span>Engine</span></label>
+          <label class="toggle-item"><input type="checkbox" id="ctx-reverse"><span>Reverse</span></label>
+          <label class="toggle-item"><input type="checkbox" id="ctx-phone"><span>Phone</span></label>
+          <label class="toggle-item"><input type="checkbox" id="ctx-carplay"><span>CarPlay</span></label>
+          <label class="toggle-item"><input type="checkbox" id="ctx-android"><span>AndroidAuto</span></label>
+          <label class="toggle-item"><input type="checkbox" id="ctx-usb"><span>USB</span></label>
+          <label class="toggle-item"><input type="checkbox" id="ctx-aux"><span>AUX</span></label>
+          <label class="toggle-item"><input type="checkbox" id="ctx-ev"><span>EV Plug</span></label>
+          <label class="toggle-item"><input type="checkbox" id="ctx-dab"><span>DAB</span></label>
+          <label class="toggle-item"><input type="checkbox" id="ctx-stream"><span>Streaming</span></label>
+        </div>
+        <button class="reset-btn" id="reset-btn">⟳  Reset Machine</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── MIDDLE: events ────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-hdr">
+      Fire Event
+      <span class="hint">· blue = guard passes · grey = blocked</span>
+    </div>
+    <div class="panel-body">
+      <div class="events-grid" id="events-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: log ────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-hdr">Transition Log</div>
+    <div class="panel-body" id="log-panel"></div>
+  </div>
+</main>
+
+<footer>
+  <span>Total transitions: <strong id="stat-total">0</strong></span>
+  <span>Successful: <strong id="stat-ok">0</strong></span>
+  <span>Blocked by guard: <strong id="stat-fail">0</strong></span>
+  <span>Unique states reached: <strong id="stat-states">0</strong></span>
+</footer>
+
+<script>
+  // ── Subsystem colour map ────────────────────────────────────────────── //
+  const SUB = {
+    BOOT:          ['Boot',         '#64748b'],
+    HOME:          ['Home',         '#64748b'],
+    RADIO:         ['Radio',        '#3b82f6'],
+    NAV:           ['Navigation',   '#22c55e'],
+    PHONE:         ['Phone',        '#14b8a6'],
+    MEDIA:         ['Media',        '#a855f7'],
+    SETTINGS:      ['Settings',     '#f97316'],
+    CLIMATE:       ['Climate',      '#ef4444'],
+    PARK_ASSIST:   ['Park Assist',  '#eab308'],
+    VEHICLE_INFO:  ['Vehicle Info', '#6366f1'],
+    APPS:          ['Apps',         '#ec4899'],
+    NOTIFICATION:  ['Overlay',      '#78716c'],
+    VOICE:         ['Voice',        '#78716c'],
+    CHARGING:      ['Charging',     '#10b981'],
+    DRIVER:        ['Driver',       '#78716c'],
+    AMBIENT:       ['Ambient',      '#78716c'],
+    ERROR:         ['Error',        '#dc2626'],
+  };
+
+  function getSubsystem(name) {
+    for (const [prefix, info] of Object.entries(SUB)) {
+      if (name.startsWith(prefix)) return info;
+    }
+    return ['Unknown', '#334155'];
+  }
+
+  // ── State ────────────────────────────────────────────────────────────── //
+  let allEvents  = [];
+  let validSet   = new Set();
+
+  function updateStateBadge(stateName) {
+    document.getElementById('state-name').textContent = stateName;
+    const [sub, color] = getSubsystem(stateName);
+    const badge = document.getElementById('sub-badge');
+    badge.textContent = sub;
+    badge.style.background = color + '22';
+    badge.style.color = color;
+    badge.style.border = `1px solid ${color}44`;
+    document.getElementById('state-name').style.color = color;
+  }
+
+  async function refreshState() {
+    const { state } = await fetch('/api/state').then(r => r.json());
+    updateStateBadge(state);
+    await refreshValid();
+  }
+
+  // ── Events ───────────────────────────────────────────────────────────── //
+  async function loadAllEvents() {
+    const { events } = await fetch('/api/events').then(r => r.json());
+    allEvents = events.filter(e => e !== 'EVENT_COUNT');
+  }
+
+  async function refreshValid() {
+    const { valid_events } = await fetch('/api/valid_events').then(r => r.json());
+    validSet = new Set(valid_events);
+    renderButtons();
+  }
+
+  function renderButtons() {
+    const grid = document.getElementById('events-grid');
+    grid.innerHTML = '';
+    for (const ev of allEvents) {
+      const btn = document.createElement('button');
+      const isValid = validSet.has(ev);
+      btn.className = `ev-btn ${isValid ? 'valid' : 'invalid'}`;
+      btn.textContent = ev;
+      btn.title = isValid ? `Fire ${ev}` : `${ev} — guard blocked`;
+      if (isValid) btn.addEventListener('click', () => fireEvent(ev));
+      grid.appendChild(btn);
+    }
+  }
+
+  async function fireEvent(name) {
+    await fetch(`/api/event/${name}`, { method: 'POST' });
+    // WebSocket carries the response to all panels
+  }
+
+  // ── Log ──────────────────────────────────────────────────────────────── //
+  function pushLog(data) {
+    const panel  = document.getElementById('log-panel');
+    const entry  = document.createElement('div');
+    entry.className = 'log-entry log-new';
+
+    const [, toColor] = getSubsystem(data.to_state);
+
+    entry.innerHTML = `
+      <div>
+        <div class="log-from">${data.from_state}</div>
+        <div class="log-event-name">↳ ${data.event}</div>
+        <div class="log-to" style="color:${toColor}">${data.to_state}</div>
+      </div>
+      <div class="${data.success ? 'log-ok' : 'log-fail'}">${data.success ? 'OK' : 'BLOCKED'}</div>
+    `;
+
+    panel.insertBefore(entry, panel.firstChild);
+    if (panel.children.length > 40) panel.removeChild(panel.lastChild);
+  }
+
+  // ── Context controls ─────────────────────────────────────────────────── //
+  function setupContext() {
+    const slider = document.getElementById('speed-slider');
+    const num    = document.getElementById('speed-num');
+
+    slider.addEventListener('input', () => {
+      const v = +slider.value;
+      num.textContent = v;
+      num.style.color = v > 5 ? '#ef4444' : '#3b82f6';
+    });
+    slider.addEventListener('change', () =>
+      patchContext({ speed_kmh: +slider.value })
+    );
+
+    const BOOLS = {
+      'ctx-engine':  'engine_running',
+      'ctx-reverse': 'in_reverse',
+      'ctx-phone':   'phone_connected',
+      'ctx-carplay': 'carplay_connected',
+      'ctx-android': 'android_auto_connected',
+      'ctx-usb':     'usb_connected',
+      'ctx-aux':     'aux_connected',
+      'ctx-ev':      'ev_plugged_in',
+      'ctx-dab':     'dab_available',
+      'ctx-stream':  'streaming_connected',
+    };
+    for (const [id, field] of Object.entries(BOOLS)) {
+      document.getElementById(id).addEventListener('change', e =>
+        patchContext({ [field]: e.target.checked })
+      );
+    }
+
+    document.getElementById('reset-btn').addEventListener('click', async () => {
+      await fetch('/api/reset', { method: 'POST' });
+      slider.value = 0; num.textContent = 0; num.style.color = '#3b82f6';
+      document.getElementById('ctx-engine').checked = true;
+      Object.keys(BOOLS).filter(id => id !== 'ctx-engine')
+            .forEach(id => { document.getElementById(id).checked = false; });
+    });
+  }
+
+  async function patchContext(patch) {
+    await fetch('/api/context', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(patch),
+    });
+    await refreshValid();
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────── //
+  async function refreshStats() {
+    const s = await fetch('/api/stats').then(r => r.json());
+    document.getElementById('stat-total').textContent  = s.total;
+    document.getElementById('stat-ok').textContent     = s.success;
+    document.getElementById('stat-fail').textContent   = s.failed;
+    document.getElementById('stat-states').textContent = s.unique_states_reached;
+  }
+
+  // ── WebSocket ────────────────────────────────────────────────────────── //
+  let ws;
+  function connect() {
+    const chip = document.getElementById('conn-chip');
+    ws = new WebSocket(`ws://${location.host}/ws`);
+
+    ws.onopen = () => {
+      chip.textContent = 'live';
+      chip.className   = 'chip live';
+    };
+    ws.onclose = () => {
+      chip.textContent = 'offline';
+      chip.className   = 'chip offline';
+      setTimeout(connect, 2500);
+    };
+    ws.onmessage = ({ data }) => {
+      const msg = JSON.parse(data);
+      if (msg.type === 'connected' || msg.type === 'reset') {
+        refreshState();
+        refreshStats();
+      } else if (msg.type === 'transition') {
+        updateStateBadge(msg.to_state);
+        pushLog(msg);
+        refreshValid();
+        refreshStats();
+      }
+    };
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────── //
+  (async () => {
+    setupContext();
+    await loadAllEvents();
+    await refreshState();
+    await refreshStats();
+    connect();
+  })();
+</script>
+</body>
+</html>
