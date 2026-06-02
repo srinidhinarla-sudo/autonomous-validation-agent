@@ -1,0 +1,7 @@
+pytest>=7.4
+pytest-repeat>=0.9
+pytest-xdist>=3.3
+pybind11>=2.11
+Pillow>=10.0
+mutmut>=2.4
+coverage>=7.3
