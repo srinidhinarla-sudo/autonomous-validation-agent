@@ -2,7 +2,9 @@
 
 > Python · C++ · pybind11 · FastAPI · SQLite · pytest
 
-An autonomous test and validation platform for a **61-state C++ vehicle-infotainment state machine** exposed to Python via pybind11. Enforces safety guards (speed-locked controls, reverse-only park assist, device-presence checks, mutual-exclusion modal states) through a layered approach: formal invariant checking, model-based test generation, adversarial fuzzing with delta debugging, and a live interactive dashboard backed by a SQLite transition log.
+A validation platform for a **61-state C++ vehicle-infotainment state machine** — the kind of system that controls navigation, phone calls, media, and climate in a modern car. The machine is written in C++ and exposed to Python via pybind11, giving full test access from Python while keeping the implementation realistic.
+
+The goal is to verify **safety-critical behaviour**: the system must never let a driver open settings at highway speed, never enter park-assist without being in reverse, and never let voice assistant interrupt an active phone call. Testing this kind of stateful, guard-driven logic is hard with plain unit tests — so this project uses a layered approach: model-based test generation (100% transition coverage), invariant-checking adversarial fuzzing, delta debugging to isolate failures, and a live dashboard backed by a SQLite transition log.
 
 ---
 
@@ -70,12 +72,19 @@ The `no_active_call` guard on every VOICE_ASSISTANT entry transition enforces mu
 | pybind11      | ≥ 2.11  |
 
 ```bash
+# Install Python dependencies
 pip install -r requirements.txt
 
+# pybind11 must also be findable by CMake — on macOS:
+brew install pybind11       # Homebrew
+# or: pip install pybind11 and point CMake to it manually
+
+# Build the C++ extension
 cmake -S . -B build -DPython3_EXECUTABLE=$(which python3)
 cmake --build build --parallel
 
-python3 -c "import infotainment_sm as sm; print(sm.InfotainmentStateMachine.all_state_names()[:3], '...')"
+# Verify
+python3 -c "import infotainment_sm as sm; print('OK —', sm.InfotainmentStateMachine.all_state_names()[:2])"
 ```
 
 ---
@@ -186,7 +195,7 @@ print(gen.coverage_report())
 # Transition coverage: 217/217 (100.0%) [target: 90%]
 ```
 
-The generator drives a **real SM instance** — not a graph simulation — ensuring guards are evaluated as the machine executes. A greedy BFS heuristic prioritises source states with the most uncovered outgoing edges; four passes over uncovered edges achieve complete coverage.
+The generator drives a **real SM instance** — not a graph simulation — so guards are evaluated exactly as they would be at runtime. A greedy BFS heuristic prioritizes source states with the most uncovered outgoing edges; four passes over uncovered edges achieve complete coverage.
 
 ---
 
@@ -254,7 +263,9 @@ Visual regression diffs are uploaded as CI artifacts on failure.
 
 ## Verified Results
 
-All numbers below are from real runs on this machine (Python 3.9.6, Apple clang 21.0, pybind11 3.0.4). See [RESULTS.md](RESULTS.md) for reproduction commands.
+All numbers below are from real runs. See [RESULTS.md](RESULTS.md) for the exact commands to reproduce them.
+
+**Environment:** Python 3.9.6 · Apple clang 21.0 · pybind11 3.0.4
 
 | Metric                      | Result                                |
 |-----------------------------|---------------------------------------|
