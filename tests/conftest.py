@@ -4,6 +4,15 @@ Shared pytest fixtures.
 
 import pytest
 
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--generate-baseline",
+        action="store_true",
+        default=False,
+        help="Regenerate visual regression baseline screenshots",
+    )
+
 try:
     import infotainment_sm as sm
     _SM_AVAILABLE = True

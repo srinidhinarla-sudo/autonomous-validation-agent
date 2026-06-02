@@ -35,18 +35,6 @@ DIFF_DIR     = Path(__file__).parent.parent / "screenshots" / "diffs"
 PIXEL_DIFF_THRESHOLD = 0.5  # percentage — fail if > 0.5 % pixels differ
 
 
-def pytest_addoption(parser):
-    try:
-        parser.addoption(
-            "--generate-baseline",
-            action="store_true",
-            default=False,
-            help="Regenerate baseline screenshots",
-        )
-    except ValueError:
-        pass  # already added by another plugin/conftest
-
-
 def get_generate_baseline(request):
     try:
         return request.config.getoption("--generate-baseline")

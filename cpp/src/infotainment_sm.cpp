@@ -133,7 +133,7 @@ void InfotainmentStateMachine::register_transitions() {
     add(S::HOME, S::VEHICLE_INFO_HOME,E::SELECT_VEHICLE_INFO,nullptr, "", "");
     add(S::HOME, S::APPS_HOME,        E::SELECT_APPS,        nullptr, "", "");
     add(S::HOME, S::NOTIFICATION_CENTER, E::OPEN_NOTIFICATIONS, nullptr, "", "");
-    add(S::HOME, S::VOICE_ASSISTANT,  E::ACTIVATE_VOICE,     nullptr, "", "");
+    // HOME -> VOICE_ASSISTANT is registered in the modal-overlay loop below (with no_active_call guard)
     add(S::HOME, S::DRIVER_PROFILE,   E::OPEN_DRIVER_PROFILE,nullptr, "", "");
     add(S::HOME, S::AMBIENT_LIGHTING, E::OPEN_AMBIENT,       nullptr, "", "");
     add(S::HOME, S::CHARGING_STATUS,  E::OPEN_CHARGING,      ev_ok, "ev_plugged_in", "EV charging screen");

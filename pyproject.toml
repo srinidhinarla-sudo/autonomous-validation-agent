@@ -1,0 +1,4 @@
+[tool.mutmut]
+paths_to_mutate = ["python/"]
+runner = "python3 -m pytest tests/test_unit.py tests/test_integration.py -x -q"
+tests_dir = "tests/"

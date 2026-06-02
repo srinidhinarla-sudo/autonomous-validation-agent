@@ -126,9 +126,10 @@ class TestNavigation:
 
     def test_full_nav_flow(self, machine):
         machine.transition(sm.Event.SELECT_NAV)
-        machine.transition(sm.Event.PLAN_ROUTE)
-        machine.transition(sm.Event.ENTER_DESTINATION)
-        assert machine.transition(sm.Event.CONFIRM_DESTINATION)
+        machine.transition(sm.Event.PLAN_ROUTE)           # NAV_HOME → NAV_ROUTE_PLAN
+        machine.transition(sm.Event.ENTER_DESTINATION)    # NAV_ROUTE_PLAN → NAV_DESTINATION_INPUT
+        machine.transition(sm.Event.CONFIRM_DESTINATION)  # NAV_DESTINATION_INPUT → NAV_ROUTE_PLAN
+        assert machine.transition(sm.Event.CONFIRM_DESTINATION)  # NAV_ROUTE_PLAN → NAV_MAP
         assert machine.get_state() == sm.State.NAV_MAP
 
     def test_turn_by_turn_navigation(self, machine):

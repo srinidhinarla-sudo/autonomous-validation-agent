@@ -136,96 +136,106 @@ class ModelBasedGenerator:
         return visited
 
     # ------------------------------------------------------------------
+    def _make_machine(self) -> "sm.InfotainmentStateMachine":
+        """Fresh machine with permissive context, booted to HOME."""
+        machine = sm.InfotainmentStateMachine()
+        ctx = sm.VehicleContext()
+        ctx.engine_running        = True
+        ctx.phone_connected       = True
+        ctx.carplay_connected     = True
+        ctx.android_auto_connected = True
+        ctx.usb_connected         = True
+        ctx.aux_connected         = True
+        ctx.dab_available         = True
+        ctx.streaming_connected   = True
+        ctx.ev_plugged_in         = True
+        ctx.speed_kmh             = 0.0
+        ctx.in_reverse            = True   # enables park assist paths
+        machine.set_context(ctx)
+        machine.transition(sm.Event.POWER_ON)
+        return machine
+
+    def _execute_and_cover(self, events: List[object]) -> List[Tuple[object, object]]:
+        """
+        Run *events* on a fresh machine; mark every taken transition covered.
+        Returns list of (from, to) pairs that were actually traversed.
+        """
+        machine = self._make_machine()
+        covered: List[Tuple[object, object]] = []
+        for ev in events:
+            prev = machine.get_state()
+            ok = machine.transition(ev)
+            if ok:
+                nxt = machine.get_state()
+                self.graph.mark_covered(prev, nxt, ev)
+                covered.append((prev, nxt))
+        return covered
+
+    # ------------------------------------------------------------------
     def generate_sequences(self) -> List[TestSequence]:
         """
         Return a list of TestSequence objects whose union achieves
         ≥ target_coverage over all transitions.
+
+        Each sequence starts fresh from HOME (guaranteed correctness —
+        no simulation drift).  BFS finds shortest path to each uncovered
+        edge's source; the real SM executes it to mark actual coverage.
         """
         self.graph.reset_coverage()
         sequences: List[TestSequence] = []
         reachable = self._reachable_from_boot()
 
-        # Boot sequence — always the first sequence
-        boot_seq = self._boot_sequence()
-        sequences.append(boot_seq)
+        # Mark BOOT→HOME as covered via the implicit power-on
+        self.graph.mark_covered(sm.State.BOOT, sm.State.HOME, sm.Event.POWER_ON)
+        sequences.append(TestSequence(
+            events=[sm.Event.POWER_ON],
+            start_state=sm.State.BOOT,
+            description="Boot sequence",
+            covers=[(sm.State.BOOT, sm.State.HOME)],
+        ))
 
-        current_state = sm.State.HOME  # after boot
-        iterations = 0
-        max_iter = self.total_transitions * 3
-
-        while self.graph.coverage < self.target_coverage and iterations < max_iter:
-            iterations += 1
+        max_passes = 4   # repeat sweeps to catch edges exposed by earlier coverage
+        for _pass in range(max_passes):
+            made_progress = False
             uncovered = [e for e in self.graph.uncovered_edges()
                          if e.from_state in reachable]
             if not uncovered:
                 break
 
-            # Pick the edge with the most uncovered outgoing edges from its source
-            target_edge = self._pick_best_edge(uncovered, current_state)
+            # Sort: prefer sources with many uncovered out-edges (batch efficiency)
+            uncovered.sort(
+                key=lambda e: -sum(1 for oe in self.graph.adj.get(e.from_state, [])
+                                   if not oe.covered)
+            )
 
-            # BFS path to the source of the target edge
-            path_to_src = self._bfs_path(current_state, target_edge.from_state)
-            if path_to_src is None:
-                # Unreachable — start fresh from HOME
-                reset_path = self._reset_to_home(current_state)
-                path_to_src = (reset_path or []) + \
-                              (self._bfs_path(sm.State.HOME, target_edge.from_state) or [])
-                if path_to_src is None:
+            for target_edge in uncovered:
+                if target_edge.covered:   # may have been covered by a prior iteration
                     continue
 
-            events = path_to_src + [target_edge.event]
+                path_to_src = self._bfs_path(sm.State.HOME, target_edge.from_state)
+                if path_to_src is None:
+                    continue  # genuinely unreachable from HOME
 
-            # Simulate to track which transitions are covered
-            sim_state = current_state
-            covered_pairs: List[Tuple[object, object]] = []
-            for ev in events:
-                for edge in self.graph.adj.get(sim_state, []):
-                    if edge.event == ev:
-                        self.graph.mark_covered(sim_state, edge.to_state, ev)
-                        covered_pairs.append((sim_state, edge.to_state))
-                        sim_state = edge.to_state
-                        break
+                events = path_to_src + [target_edge.event]
+                covered_pairs = self._execute_and_cover(events)
 
-            seq = TestSequence(
-                events=events,
-                start_state=current_state,
-                description=f"Cover {sm.InfotainmentStateMachine.state_name(target_edge.from_state)}"
+                if covered_pairs:
+                    sequences.append(TestSequence(
+                        events=events,
+                        start_state=sm.State.HOME,
+                        description=(
+                            f"Cover {sm.InfotainmentStateMachine.state_name(target_edge.from_state)}"
                             f" --[{sm.InfotainmentStateMachine.event_name(target_edge.event)}]--> "
-                            f"{sm.InfotainmentStateMachine.state_name(target_edge.to_state)}",
-                covers=covered_pairs,
-            )
-            sequences.append(seq)
-            current_state = sim_state
+                            f"{sm.InfotainmentStateMachine.state_name(target_edge.to_state)}"
+                        ),
+                        covers=covered_pairs,
+                    ))
+                    made_progress = True
+
+            if not made_progress or self.graph.coverage >= self.target_coverage:
+                break
 
         return sequences
-
-    def _boot_sequence(self) -> TestSequence:
-        """Standard boot-up sequence."""
-        ctx_event = sm.Event.POWER_ON
-        seq = TestSequence(
-            events=[ctx_event],
-            start_state=sm.State.BOOT,
-            description="Boot sequence",
-        )
-        self.graph.mark_covered(sm.State.BOOT, sm.State.HOME, ctx_event)
-        seq.covers.append((sm.State.BOOT, sm.State.HOME))
-        return seq
-
-    def _reset_to_home(self, state: object) -> Optional[List[object]]:
-        return self._bfs_path(state, sm.State.HOME)
-
-    def _pick_best_edge(self, uncovered: List[TransitionEdge],
-                        current_state: object) -> TransitionEdge:
-        """Prefer edges whose source has many uncovered outgoing transitions."""
-        def score(e: TransitionEdge) -> int:
-            src_uncovered = sum(1 for oe in self.graph.adj.get(e.from_state, [])
-                                if not oe.covered)
-            # Prefer edges closest to current state (0 = already there)
-            path = self._bfs_path(current_state, e.from_state)
-            dist = len(path) if path is not None else 9999
-            return src_uncovered * 100 - dist
-
-        return max(uncovered, key=score)
 
     @property
     def total_transitions(self) -> int:
@@ -237,7 +247,16 @@ class ModelBasedGenerator:
 
     def coverage_report(self) -> str:
         covered = self.graph.covered_edges
-        total = self.graph.total_edges
-        pct = 100.0 * covered / total if total else 100.0
+        total   = self.graph.total_edges
+        pct     = 100.0 * covered / total if total else 100.0
         return (f"Transition coverage: {covered}/{total} ({pct:.1f}%) "
                 f"[target: {self.target_coverage*100:.0f}%]")
+
+    def uncovered_transition_names(self) -> List[str]:
+        """Human-readable list of transitions not yet covered."""
+        SM = sm.InfotainmentStateMachine
+        return [
+            f"{SM.state_name(e.from_state)} --[{SM.event_name(e.event)}]--> {SM.state_name(e.to_state)}"
+            f"  (guard: {e.guard_name or 'none'})"
+            for e in self.graph.uncovered_edges()
+        ]
