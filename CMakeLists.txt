@@ -25,6 +25,8 @@ add_library(infotainment_sm_lib STATIC
 )
 target_include_directories(infotainment_sm_lib PUBLIC cpp/include)
 target_compile_options(infotainment_sm_lib PRIVATE -Wall -Wextra -O2)
+# Required on Linux: static lib linked into a shared .so must be position-independent
+set_target_properties(infotainment_sm_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # ---- pybind11 extension module ----------------------------------------------
 pybind11_add_module(infotainment_sm cpp/src/bindings.cpp)

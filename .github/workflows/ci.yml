@@ -76,9 +76,10 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Run unit + integration tests
+      - name: Run unit + integration + invariant tests
         run: |
           pytest tests/test_unit.py tests/test_integration.py \
+                 tests/test_invariants_direct.py \
             -v --tb=short \
             --junitxml=reports/unit-integration.xml
 
