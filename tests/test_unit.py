@@ -289,6 +289,27 @@ class TestModals:
         assert machine.transition(sm.Event.DEACTIVATE_VOICE)
         assert machine.get_state() == sm.State.HOME
 
+    def test_voice_blocked_during_phone_incall(self, machine):
+        """Mutual-exclusion: VOICE_ASSISTANT must be unreachable while in PHONE_INCALL."""
+        machine.transition(sm.Event.SELECT_PHONE)
+        machine.transition(sm.Event.CALL_INITIATE)
+        machine.transition(sm.Event.CALL_ANSWER)
+        assert machine.get_state() == sm.State.PHONE_INCALL
+        # call_active is now True — ACTIVATE_VOICE must be blocked
+        assert not machine.transition(sm.Event.ACTIVATE_VOICE), \
+            "VOICE_ASSISTANT reached during PHONE_INCALL — mutual-exclusion guard broken!"
+        assert machine.get_state() == sm.State.PHONE_INCALL
+
+    def test_voice_allowed_after_call_ends(self, machine):
+        """After CALL_END, call_active is cleared and VOICE_ASSISTANT is reachable again."""
+        machine.transition(sm.Event.SELECT_PHONE)
+        machine.transition(sm.Event.CALL_INITIATE)
+        machine.transition(sm.Event.CALL_ANSWER)
+        machine.transition(sm.Event.CALL_END)        # PHONE_INCALL → PHONE_HOME
+        machine.transition(sm.Event.HOME_BUTTON)     # → HOME
+        assert machine.transition(sm.Event.ACTIVATE_VOICE)
+        assert machine.get_state() == sm.State.VOICE_ASSISTANT
+
     def test_charging_requires_ev_plugged(self, machine):
         ctx = machine.get_context()
         ctx.ev_plugged_in = False

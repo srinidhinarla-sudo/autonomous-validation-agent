@@ -91,10 +91,12 @@ class Fuzzer:
         self.use_valid_events = use_valid_events
         self.context_mode = context_mode
 
-        # Pre-build the full event list once
+        # Pre-build the full event list once.
+        # Use all_event_names() — vars() is unreliable on pybind11 enum types.
         self._all_events = [
-            e for e in vars(sm.Event).values()
-            if isinstance(e, sm.Event) and e != sm.Event.EVENT_COUNT
+            getattr(sm.Event, name)
+            for name in sm.InfotainmentStateMachine.all_event_names()
+            if name != "EVENT_COUNT"
         ]
 
     def _context_for_seed(self, seed: int) -> "sm.VehicleContext":

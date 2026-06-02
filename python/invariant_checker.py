@@ -85,14 +85,9 @@ class InvariantChecker:
         AUX_REQUIRED_STATES = {S.MEDIA_AUX}
         EV_REQUIRED_STATES  = {S.CHARGING_STATUS}
 
-        # Mutually exclusive modal pairs:
-        # VOICE_ASSISTANT and PHONE_INCALL must never be the active state simultaneously.
-        # (We can only be in one state at a time, so the real invariant is:
-        #  if in PHONE_INCALL, the previous path must not have gone through VOICE_ASSISTANT
-        #  without dismissing it first — enforced by the SM itself.  We check that
-        #  VOICE_ASSISTANT is never reached while phone is in-call by checking
-        #  that if state == VOICE_ASSISTANT then phone is not connected and in-call.)
-        # For simplicity we assert: PHONE_INCALL ∧ state == VOICE_ASSISTANT is impossible.
+        # Mutually exclusive modal states: VOICE_ASSISTANT must never be reached
+        # while a phone call is active.  VehicleContext.call_active is set/cleared
+        # automatically by the SM's transition() when entering/leaving PHONE_INCALL.
 
         def check_speed_lock(state, ctx) -> Optional[str]:
             if state in SPEED_LOCKED_STATES and ctx.speed_kmh > 5.0:
@@ -137,6 +132,13 @@ class InvariantChecker:
                 return f"CHARGING_STATUS reached without EV plugged in"
             return None
 
+        def check_mutual_exclusion(state, ctx) -> Optional[str]:
+            # VOICE_ASSISTANT and PHONE_INCALL are mutually exclusive modal states.
+            if state == S.VOICE_ASSISTANT and ctx.call_active:
+                return ("Mutual-exclusion violation: VOICE_ASSISTANT entered while "
+                        "call_active=True (PHONE_INCALL is the exclusive modal state)")
+            return None
+
         def check_valid_state(state, ctx) -> Optional[str]:
             try:
                 sm.state_name(state)
@@ -145,15 +147,16 @@ class InvariantChecker:
             return None
 
         return [
-            ("speed_lock",       check_speed_lock),
-            ("reverse_only",     check_reverse_only),
-            ("phone_connected",  check_phone_connected),
-            ("carplay",          check_carplay),
-            ("android_auto",     check_android_auto),
-            ("usb_connected",    check_usb),
-            ("aux_connected",    check_aux),
-            ("ev_plugged_in",    check_ev),
-            ("valid_state",      check_valid_state),
+            ("speed_lock",        check_speed_lock),
+            ("reverse_only",      check_reverse_only),
+            ("phone_connected",   check_phone_connected),
+            ("carplay",           check_carplay),
+            ("android_auto",      check_android_auto),
+            ("usb_connected",     check_usb),
+            ("aux_connected",     check_aux),
+            ("ev_plugged_in",     check_ev),
+            ("mutual_exclusion",  check_mutual_exclusion),
+            ("valid_state",       check_valid_state),
         ]
 
     # ------------------------------------------------------------------

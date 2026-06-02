@@ -17,6 +17,7 @@ static bool aux_ok(const VehicleContext& c)          { return c.aux_connected; }
 static bool ev_ok(const VehicleContext& c)           { return c.ev_plugged_in; }
 static bool dab_ok(const VehicleContext& c)          { return c.dab_available; }
 static bool streaming_ok(const VehicleContext& c)    { return c.streaming_connected; }
+static bool no_active_call(const VehicleContext& c)  { return !c.call_active; }  // mutual-exclusion guard
 static bool always(const VehicleContext&)            { return true; }
 
 // --------------------------------------------------------------------------
@@ -350,9 +351,12 @@ void InfotainmentStateMachine::register_transitions() {
     add(S::VOICE_ASSISTANT, S::HOME, E::HOME_BUTTON,      nullptr, "", "");
     add(S::VOICE_ASSISTANT, S::HOME, E::CLOSE_OVERLAY,    nullptr, "", "");
 
-    // Voice can be activated from key subsystem screens (mutually exclusive with PHONE_INCALL)
-    for (State s : {S::RADIO_FM, S::NAV_MAP, S::MEDIA_HOME, S::CLIMATE_HOME}) {
-        add(s, S::VOICE_ASSISTANT, E::ACTIVATE_VOICE, nullptr, "", "");
+    // Voice can be activated from key subsystem screens.
+    // Guard: no_active_call enforces mutual exclusion with PHONE_INCALL.
+    for (State s : {S::HOME, S::RADIO_FM, S::NAV_MAP, S::MEDIA_HOME, S::CLIMATE_HOME}) {
+        add(s, S::VOICE_ASSISTANT, E::ACTIVATE_VOICE,
+            no_active_call, "no_active_call",
+            "VOICE_ASSISTANT and PHONE_INCALL are mutually exclusive modal states");
     }
 
     add(S::CHARGING_STATUS, S::HOME, E::BACK_BUTTON,  nullptr, "", "");
@@ -390,6 +394,11 @@ bool InfotainmentStateMachine::transition(Event event) {
                 visited_transitions_.emplace_back(current_state_, t.to);
                 current_state_ = t.to;
                 ++transition_count_;
+                // Keep call_active in sync so the mutual-exclusion guard stays accurate.
+                if (current_state_ == State::PHONE_INCALL)
+                    context_.call_active = true;
+                else if (t.from == State::PHONE_INCALL)
+                    context_.call_active = false;
                 return true;
             }
         }

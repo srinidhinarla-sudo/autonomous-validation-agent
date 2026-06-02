@@ -83,6 +83,7 @@ PYBIND11_MODULE(infotainment_sm, m) {
         .def_readwrite("ev_plugged_in",         &VehicleContext::ev_plugged_in)
         .def_readwrite("dab_available",         &VehicleContext::dab_available)
         .def_readwrite("streaming_connected",   &VehicleContext::streaming_connected)
+        .def_readwrite("call_active",           &VehicleContext::call_active)
         .def("__repr__", [](const VehicleContext& c) {
             return "<VehicleContext speed=" + std::to_string(c.speed_kmh)
                  + " reverse=" + std::to_string(c.in_reverse) + ">";

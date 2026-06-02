@@ -172,6 +172,7 @@ struct VehicleContext {
     bool  ev_plugged_in    = false;
     bool  dab_available    = false;
     bool  streaming_connected = false;
+    bool  call_active      = false;   // true while PHONE_INCALL — used by mutual-exclusion guard
 };
 
 // Plain-data transition descriptor returned to Python
